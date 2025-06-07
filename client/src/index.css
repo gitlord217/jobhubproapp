@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 7%; /* #121212 - Dark gray */
+  --foreground: 160 100% 85%; /* #B3FFE6 - Light mint */
+  --muted: 0 0% 15%; /* #262626 - Medium gray */
+  --muted-foreground: 160 50% 70%; /* #80CCA6 - Muted mint */
+  --popover: 0 0% 10%; /* #1A1A1A - Darker gray */
+  --popover-foreground: 160 100% 85%; /* #B3FFE6 - Light mint */
+  --card: 0 0% 10%; /* #1A1A1A - Darker gray */
+  --card-foreground: 160 100% 85%; /* #B3FFE6 - Light mint */
+  --border: 0 0% 20%; /* #333333 - Border gray */
+  --input: 0 0% 15%; /* #262626 - Input background */
+  --primary: 160 100% 50%; /* #00FF80 - Bright mint green */
+  --primary-foreground: 0 0% 0%; /* #000000 - Pure black */
+  --secondary: 160 100% 40%; /* #00CC66 - Dark mint green */
+  --secondary-foreground: 0 0% 0%; /* #000000 - Pure black */
+  --accent: 160 100% 60%; /* #00FF99 - Accent mint */
+  --accent-foreground: 0 0% 0%; /* #000000 - Pure black */
+  --destructive: 0 85% 60%; /* #F23E3E - Red for errors */
+  --destructive-foreground: 0 0% 100%; /* #FFFFFF - White */
+  --ring: 160 100% 50%; /* #00FF80 - Focus ring mint */
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 0 0% 3%; /* #080808 - Almost black */
+  --foreground: 160 100% 90%; /* #E6FFF5 - Very light mint */
+  --muted: 0 0% 12%; /* #1F1F1F - Darker muted */
+  --muted-foreground: 160 60% 75%; /* #99E6CC - Light muted mint */
+  --popover: 0 0% 8%; /* #141414 - Very dark gray */
+  --popover-foreground: 160 100% 90%; /* #E6FFF5 - Very light mint */
+  --card: 0 0% 8%; /* #141414 - Very dark gray */
+  --card-foreground: 160 100% 90%; /* #E6FFF5 - Very light mint */
+  --border: 0 0% 18%; /* #2E2E2E - Lighter border */
+  --input: 0 0% 12%; /* #1F1F1F - Input background */
+  --primary: 160 100% 60%; /* #00FF99 - Brighter mint */
+  --primary-foreground: 0 0% 0%; /* #000000 - Pure black */
+  --secondary: 160 100% 45%; /* #00E673 - Medium mint */
+  --secondary-foreground: 0 0% 0%; /* #000000 - Pure black */
+  --accent: 160 100% 65%; /* #00FFB3 - Bright accent mint */
+  --accent-foreground: 0 0% 0%; /* #000000 - Pure black */
+  --destructive: 0 90% 65%; /* #FF4747 - Brighter red */
+  --destructive-foreground: 0 0% 100%; /* #FFFFFF - White */
+  --ring: 160 100% 60%; /* #00FF99 - Brighter focus ring */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  }
+}
