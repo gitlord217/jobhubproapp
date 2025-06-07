@@ -47,6 +47,7 @@ export default function Login() {
         title: "Welcome back!",
         description: "You have been successfully signed in.",
       });
+      // Redirect after successful login
       setLocation('/');
     } catch (error: any) {
       toast({

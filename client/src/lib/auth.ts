@@ -6,7 +6,9 @@ export function useAuth() {
   return useQuery<User | null>({
     queryKey: ['/api/auth/me'],
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always refetch to ensure fresh data
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 }
 
@@ -18,7 +20,9 @@ export function useLogin() {
       const response = await apiRequest('POST', '/api/auth/login', credentials);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (user) => {
+      // Set the user data immediately and invalidate to refetch
+      queryClient.setQueryData(['/api/auth/me'], user);
       queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
     },
   });
@@ -32,7 +36,9 @@ export function useRegister() {
       const response = await apiRequest('POST', '/api/auth/register', userData);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (user) => {
+      // Set the user data immediately and invalidate to refetch
+      queryClient.setQueryData(['/api/auth/me'], user);
       queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
     },
   });

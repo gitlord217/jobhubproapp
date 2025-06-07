@@ -56,6 +56,7 @@ export default function Register() {
         title: "Account created successfully!",
         description: "Welcome to JobConnect Pro. You can now start exploring opportunities.",
       });
+      // Redirect after successful registration
       setLocation('/');
     } catch (error: any) {
       toast({
