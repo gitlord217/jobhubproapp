@@ -1,22 +1,48 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+const MemStore = MemoryStore(session);
+
 const app = express();
+
+// CORS configuration for deployment
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Session configuration
+// Session configuration for deployment compatibility
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key-here',
-  resave: false,
-  saveUninitialized: false,
+  secret: process.env.SESSION_SECRET || 'your-secret-key-here-change-in-production',
+  resave: true,
+  saveUninitialized: true,
+  store: new MemStore({
+    checkPeriod: 86400000 // prune expired entries every 24h
+  }),
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // Keep false for now to ensure sessions work across environments
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    sameSite: 'lax'
   },
+  name: 'connect.sid'
 }));
 
 // Extend session type
@@ -77,10 +103,8 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  // Use Railway's PORT environment variable or fallback to 5000
+  const port = process.env.PORT || 5000;
   server.listen({
     port,
     host: "0.0.0.0",

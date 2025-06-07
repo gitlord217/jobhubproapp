@@ -25,6 +25,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
       });
 
+      // Set session to automatically log in the user
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+      
+      // Force session save for deployment compatibility
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error during registration:", err);
+            reject(err);
+          } else {
+            console.log("Session saved successfully during registration");
+            resolve(void 0);
+          }
+        });
+      });
+
       // Don't return password
       const { password, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
@@ -51,6 +68,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set session
       req.session.userId = user.id;
       req.session.userRole = user.role;
+      
+      // Force session save for deployment compatibility
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error during login:", err);
+            reject(err);
+          } else {
+            console.log("Session saved successfully during login");
+            resolve(void 0);
+          }
+        });
+      });
 
       const { password: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
@@ -70,17 +100,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/auth/me", async (req, res) => {
+    console.log("Auth check - Session:", {
+      sessionId: req.sessionID,
+      userId: req.session.userId,
+      userRole: req.session.userRole,
+      hasSession: !!req.session
+    });
+    
     if (!req.session.userId) {
+      console.log("No session userId found in auth check");
       return res.status(401).json({ message: "Not authenticated" });
     }
 
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user) {
+        console.log("User not found for session userId:", req.session.userId);
         return res.status(404).json({ message: "User not found" });
       }
 
+      // Sync session with database in case of discrepancies
+      if (req.session.userRole !== user.role) {
+        console.log("Syncing session role with database:", {
+          sessionRole: req.session.userRole,
+          dbRole: user.role
+        });
+        req.session.userRole = user.role;
+      }
+
       const { password, ...userWithoutPassword } = user;
+      console.log("Auth check successful for user:", userWithoutPassword.id);
       res.json(userWithoutPassword);
     } catch (error) {
       console.error("Get user error:", error);
@@ -348,27 +397,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Application routes
   app.post("/api/applications", async (req, res) => {
+    console.log("Application request - Session:", { 
+      sessionId: req.sessionID, 
+      userId: req.session.userId, 
+      userRole: req.session.userRole,
+      hasSession: !!req.session
+    });
+    console.log("Application request - Body:", req.body);
+    
     if (!req.session.userId || req.session.userRole !== 'job_seeker') {
+      console.log("Unauthorized application attempt:", {
+        hasUserId: !!req.session.userId,
+        userRole: req.session.userRole,
+        expected: 'job_seeker'
+      });
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     try {
-      const validatedData = insertApplicationSchema.parse({
+      const applicationData = {
         ...req.body,
         candidateId: req.session.userId,
-      });
+      };
+      
+      console.log("Validating application data:", applicationData);
+      const validatedData = insertApplicationSchema.parse(applicationData);
+      console.log("Validated application data:", validatedData);
 
       // Check if application already exists
       const exists = await storage.getApplicationExists(validatedData.jobId, validatedData.candidateId);
+      console.log("Application exists check:", { jobId: validatedData.jobId, candidateId: validatedData.candidateId, exists });
+      
       if (exists) {
         return res.status(400).json({ message: "You have already applied to this job" });
       }
 
       const application = await storage.createApplication(validatedData);
+      console.log("Application created successfully:", application);
       res.json(application);
     } catch (error) {
-      console.error("Create application error:", error);
-      res.status(400).json({ message: "Invalid application data" });
+      console.error("Create application error details:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        body: req.body,
+        session: {
+          userId: req.session.userId,
+          userRole: req.session.userRole
+        }
+      });
+      
+      if (error instanceof z.ZodError) {
+        console.error("Validation errors:", error.errors);
+        return res.status(400).json({ 
+          message: "Invalid application data",
+          errors: error.errors
+        });
+      }
+      
+      res.status(500).json({ message: "Failed to create application" });
     }
   });
 
@@ -526,26 +612,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Profile routes
   app.put("/api/profile", async (req, res) => {
+    console.log("Profile update request - Session ID:", req.sessionID);
+    console.log("Profile update request - User ID:", req.session.userId);
+    console.log("Profile update request - Body:", req.body);
+    
     if (!req.session.userId) {
+      console.log("No session userId found");
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     try {
       const { profileData, ...otherUpdates } = req.body;
       
+      // Validate the update data
+      const updateSchema = z.object({
+        username: z.string().min(2).optional(),
+        email: z.string().email().optional(),
+        role: z.enum(["job_seeker", "employer"]).optional(),
+      });
+
+      const validatedUpdates = updateSchema.parse(otherUpdates);
+      console.log("Validated updates:", validatedUpdates);
+      
+      // Check if email is being changed and if it already exists
+      if (validatedUpdates.email) {
+        const existingUser = await storage.getUserByEmail(validatedUpdates.email);
+        if (existingUser && existingUser.id !== req.session.userId) {
+          return res.status(400).json({ message: "Email already in use" });
+        }
+      }
+      
       const user = await storage.updateUser(req.session.userId, {
-        ...otherUpdates,
+        ...validatedUpdates,
         profileData,
       });
 
       if (!user) {
+        console.log("User not found for ID:", req.session.userId);
         return res.status(404).json({ message: "User not found" });
       }
 
+      console.log("User updated successfully:", user);
+
+      // Update session with new role if it changed
+      if (validatedUpdates.role) {
+        console.log("Updating session role from", req.session.userRole, "to", validatedUpdates.role);
+        req.session.userRole = validatedUpdates.role;
+        
+        // Force session save and wait for it
+        try {
+          await new Promise((resolve, reject) => {
+            req.session.save((err) => {
+              if (err) {
+                console.error("Session save error:", err);
+                reject(err);
+              } else {
+                console.log("Session saved successfully");
+                resolve(void 0);
+              }
+            });
+          });
+        } catch (sessionError) {
+          console.error("Failed to save session:", sessionError);
+          return res.status(500).json({ message: "Failed to save session" });
+        }
+      }
+
       const { password, ...userWithoutPassword } = user;
+      console.log("Returning user data:", userWithoutPassword);
       res.json(userWithoutPassword);
     } catch (error) {
       console.error("Update profile error:", error);
+      if (error instanceof z.ZodError) {
+        console.error("Validation error details:", error.errors);
+        return res.status(400).json({ message: "Invalid update data", errors: error.errors });
+      }
       res.status(500).json({ message: "Failed to update profile" });
     }
   });
